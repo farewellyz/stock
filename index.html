@@ -458,7 +458,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 
 <script>
 // ════════ CONFIG ════════
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwqmQyMzqvPcmuSEfWAiddxg1_ZWUed1h3on8rUJko1CBhEyFan03PqDABn-c_3_7Sp/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx6V6mETNC5Oj1CCv_zKH0biifv7s6zvB8IIx5CzJ9_HKeE0BscaVUpi57kfoC-8bZU/exec';
 const BASE_URL  = 'https://stock-eight-psi.vercel.app/';
 
 // ════════ STATE ════════
@@ -1166,7 +1166,7 @@ async function init() {
       if(_currentTab==='log') renderLog();
       updateHeader();
     } catch(e) { setSyncStatus('err','refresh ล้มเหลว'); }
-  }, 60000);
+  }, 10000);
 
   // poll scan queue ทุก 2.5 วินาที
   startScanPoll();
