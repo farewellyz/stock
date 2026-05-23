@@ -6,7 +6,6 @@
 <title>Hotel Inventory</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
 :root {
   --gold:#C9A84C; --gold-l:#E8C97A; --gold-dim:rgba(201,168,76,0.13);
@@ -213,12 +212,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 .bc-name{font-size:0.8rem;font-weight:600;text-align:center;color:var(--text)}
 .bc-sub{font-size:0.64rem;color:var(--muted);text-align:center}
 .print-sheet{display:none}
-/* SCANNER */
-#scan-video{width:100%;max-width:360px;border-radius:12px;border:2px solid var(--border);display:block}
-.scan-line{width:100%;max-width:360px;height:2px;
-  background:linear-gradient(90deg,transparent,var(--gold),transparent);
-  animation:scanline 1.5s ease-in-out infinite}
-@keyframes scanline{0%,100%{opacity:0.2}50%{opacity:1}}
+
 
 /* TOAST */
 .tcon{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;display:flex;flex-direction:column;gap:0.45rem;pointer-events:none}
@@ -269,7 +263,6 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
   </div>
   <div class="hright">
     <div class="sync-pill"><div class="sdot" id="sync-dot"></div><span id="sync-text">กำลังโหลด...</span></div>
-    <button class="btn btn-success btn-sm" onclick="openScannerModal()" id="btn-scan">📷 สแกน</button>
   </div>
 </header>
 
@@ -412,28 +405,6 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
   </div>
 </div>
 
-<!-- SCANNER MODAL -->
-<div class="overlay" id="modal-scanner">
-  <div class="modal" style="max-width:420px">
-    <div class="mhead">
-      <div class="mtitle">📷 สแกน Barcode</div>
-      <button class="mclose" onclick="stopScanner()">✕</button>
-    </div>
-    <div class="mbody" style="align-items:center">
-      <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0.75rem">
-        <video id="scan-video" autoplay playsinline muted></video>
-        <div class="scan-line" id="scan-line" style="display:none"></div>
-        <p class="scan-hint" id="scan-hint">กำลังเปิดกล้อง...</p>
-      </div>
-      <div id="scan-result-box" style="display:none;background:var(--green-d);border:1px solid rgba(61,191,138,0.3);border-radius:10px;padding:0.85rem;width:100%;text-align:center">
-        <div style="color:var(--green);font-weight:600;font-size:0.9rem" id="scan-result-text"></div>
-      </div>
-    </div>
-    <div class="mfoot">
-      <button class="btn btn-outline" onclick="stopScanner()">ปิด</button>
-    </div>
-  </div>
-</div>
 
 <div class="overlay" id="modal-confirm">
   <div class="cmodal">
@@ -1003,110 +974,23 @@ function printSelectedQR() {
   setTimeout(()=>window.print(), 300);
 }
 
-// ════════ SCANNER (ZXing) ════════
-let _scanReader = null;
-let _scanActive = false;
 
-async function openScannerModal() {
-  openModal('modal-scanner');
-  document.getElementById('scan-result-box').style.display='none';
-  document.getElementById('scan-hint').textContent='กำลังเปิดกล้อง...';
-  document.getElementById('scan-line').style.display='none';
-  await startScanner();
-}
-
-async function startScanner() {
-  try {
-    if(!window.ZXing){ toast('ไม่พบ ZXing library','error'); return; }
-    _scanReader = new ZXing.BrowserQRCodeReader();
-
-    // ขอสิทธิ์กล้องก่อน พร้อมบังคับกล้องหลังตั้งแต่แรก
-    try {
-      const testStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: 'environment' } }
-      }).catch(() =>
-        // fallback กรณีมือถือบางรุ่นไม่รองรับ exact -> ลอง ideal แทน
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      );
-      testStream.getTracks().forEach(t => t.stop());
-    } catch(permErr) {
-      document.getElementById('scan-hint').textContent = 'กรุณาอนุญาตเข้าถึงกล้อง';
-      console.error(permErr);
-      return;
-    }
-
-    document.getElementById('scan-hint').textContent='ส่องบาร์โค้ดให้ตรงกล้อง...';
-    document.getElementById('scan-line').style.display='block';
-    _scanActive = true;
-
-    // ใช้ constraints แทน deviceId -- วิธีนี้บังคับกล้องหลังได้ทั้ง iOS และ Android
-    const constraints = { video: { facingMode: { ideal: 'environment' } } };
-    await _scanReader.decodeFromConstraints(constraints, 'scan-video', (result, err) => {
-      if(!_scanActive) return;
-      if(result) {
-        const raw = result.getText();
-        document.getElementById('scan-hint').textContent = 'อ่านได้: ' + raw;
-        handleBarcodeScan(raw);
-      }
-    });
-  } catch(e) {
-    document.getElementById('scan-hint').textContent='เปิดกล้องไม่ได้: '+e.message;
-    console.error(e);
-  }
-}
-
-function stopScanner() {
-  _scanActive = false;
-  if(_scanReader){ try{ _scanReader.reset(); }catch(e){} _scanReader=null; }
-  const v=document.getElementById('scan-video');
-  if(v&&v.srcObject){ v.srcObject.getTracks().forEach(t=>t.stop()); v.srcObject=null; }
-  closeModal('modal-scanner');
-}
-
-function handleBarcodeScan(rawCode) {
-  if(!_scanActive) return;
-  _scanActive = false;
-  // เล่นเสียง feedback
-  try{ const ctx=new AudioContext(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=880; g.gain.setValueAtTime(0.3,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15); o.start(); o.stop(ctx.currentTime+0.15); }catch(e){}
-  // QR encode เป็น URL → ดึง ?scan= ออกมา, หรือถ้าเป็น itemId ตรงๆ ก็ใช้ได้เลย
-  let code = rawCode;
-  try {
-    const u = new URL(rawCode);
-    const scanParam = u.searchParams.get('scan');
-    if(scanParam) code = decodeURIComponent(scanParam);
-  } catch(e) {}
-  // หา item จาก itemId
-  const item = DB.items.find(i => i.id === code);
-  const box = document.getElementById('scan-result-box');
-  const txt = document.getElementById('scan-result-text');
-  if(item){
-    box.style.display='block';
-    txt.textContent='✓ พบ: '+item.name+' — กำลังเปิดฟอร์มยืม...';
-    document.getElementById('scan-hint').textContent='สแกนสำเร็จ!';
-    setTimeout(()=>{
-      stopScanner();
-      openBorrowFor(item.id);
-    }, 800);
-  } else {
-    box.style.display='block';
-    box.style.background='var(--red-d)';
-    box.style.borderColor='rgba(224,92,92,0.3)';
-    txt.style.color='var(--red)';
-    txt.textContent='ไม่พบสินค้า: '+code;
-    document.getElementById('scan-hint').textContent='ลองสแกนใหม่...';
-    setTimeout(()=>{ _scanActive=true; box.style.display='none'; box.style.background='var(--green-d)'; box.style.borderColor='rgba(61,191,138,0.3)'; txt.style.color='var(--green)'; },2000);
-  }
-}
 
 // ════════ BARCODE SCAN via URL param (backward compat) ════════
 async function handleScanParam() {
   const params = new URLSearchParams(window.location.search);
-  const scanId = params.get('scan');
+  let scanId = params.get('scan');
   if(!scanId) return false;
+  // รองรับกรณี QR encode เป็น URL เต็ม แล้วมือถือ decode มาอีกชั้น
+  try {
+    const u = new URL(scanId);
+    const inner = u.searchParams.get('scan');
+    if(inner) scanId = decodeURIComponent(inner);
+  } catch(e) {}
   await loadAll();
   renderInventory(); renderBorrow(); renderLog(); updateHeader();
-  const item = DB.items.find(i=>i.id===scanId);
-  if(!item){ toast('ไม่พบสินค้านี้ในระบบ','error'); return true; }
+  const item = DB.items.find(i => String(i.id) === String(scanId));
+  if(!item){ toast('ไม่พบสินค้านี้ในระบบ: ' + scanId,'error'); return true; }
   switchTab('borrow');
   openBorrowFor(item.id);
   toast(`📦 ${item.name} — กรอกชื่อและห้องแล้วกดบันทึก`,'info');
