@@ -204,9 +204,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
   cursor:pointer;transition:all 0.2s;position:relative}
 .bc-card:hover{border-color:var(--gold);background:var(--surf2)}
 .bc-card.selected{border-color:var(--gold);background:var(--gold-dim)}
-.unit-badge{position:absolute;top:8px;right:8px;background:var(--gold-dim);
-  color:var(--gold);font-size:0.6rem;font-weight:700;padding:2px 7px;
-  border-radius:20px;border:1px solid var(--border)}
+
 .bc-svg-wrap{background:#fff;padding:8px;border-radius:7px;width:100%;display:flex;justify-content:center;align-items:center}
 .bc-svg-wrap canvas,.bc-svg-wrap img{display:block}
 .bc-name{font-size:0.8rem;font-weight:600;text-align:center;color:var(--text)}
@@ -880,64 +878,33 @@ function updateHeader() {
 
 // ════════ BARCODE ════════
 // สร้าง unit list สำหรับแต่ละ item (1 item อาจมีหลาย unit)
-function getUnitsForItem(item) {
-  const qty = Number(item.totalQty) || 1;
-  const units = [];
-  for(let i=1; i<=qty; i++) {
-    const unitCode = item.id + '-' + String(i).padStart(2,'0');
-    units.push({ itemId:item.id, unitCode, unitNum:i, item });
-  }
-  return units;
-}
-
-function makeBarcodeEl(code) {
+function makeQREl(itemId) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'width:130px;height:130px';
-  const url = BASE_URL + '?scan=' + encodeURIComponent(code);
+  const url = BASE_URL + '?scan=' + itemId;
   try {
-    new QRCode(wrap, {
-      text: url,
-      width: 130, height: 130,
-      colorDark: '#000000', colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  } catch(e) { wrap.textContent = code; }
+    new QRCode(wrap, { text:url, width:130, height:130, colorDark:'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M });
+  } catch(e) { wrap.textContent = itemId; }
   return wrap;
 }
 
 function renderQR() {
   const q = document.getElementById('qr-search').value.toLowerCase();
   const grid = document.getElementById('qr-grid');
-  let units = [];
-  DB.items.forEach(item => {
-    getUnitsForItem(item).forEach(u => {
-      if(!q || (item.name+(item.note||'')+u.unitCode).toLowerCase().includes(q))
-        units.push(u);
-    });
-  });
-  if(!units.length){ grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div><p>ไม่พบสินค้า</p></div>`; return; }
+  const items = DB.items.filter(item => !q || (item.name+(item.note||'')+item.id).toLowerCase().includes(q));
+  if(!items.length){ grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div><p>ไม่พบสินค้า</p></div>`; return; }
   grid.innerHTML='';
-  units.forEach(u=>{
+  items.forEach(item=>{
     const card = document.createElement('div');
-    const selKey = u.unitCode;
-    card.className='bc-card'+(selectedQR.has(selKey)?' selected':'');
-    card.onclick=()=>toggleQR(selKey,card);
-    // badge ชิ้นที่
-    const badge = document.createElement('div');
-    badge.className='unit-badge';
-    badge.textContent=`ชิ้นที่ ${u.unitNum}/${Number(u.item.totalQty)}`;
-    card.appendChild(badge);
-    // barcode svg
+    card.className='bc-card'+(selectedQR.has(item.id)?' selected':'');
+    card.onclick=()=>toggleQR(item.id, card);
     const wrap = document.createElement('div');
     wrap.className='bc-svg-wrap';
-    wrap.appendChild(makeBarcodeEl(u.item.id));
+    wrap.appendChild(makeQREl(item.id));
     card.appendChild(wrap);
-    // name
-    const nm=document.createElement('div'); nm.className='bc-name'; nm.textContent=u.item.name; card.appendChild(nm);
-    // note
-    if(u.item.note){ const nt=document.createElement('div'); nt.className='bc-sub'; nt.textContent='📌 '+u.item.note; card.appendChild(nt); }
-    // code text
-    const cd=document.createElement('div'); cd.className='bc-sub'; cd.style.fontFamily='monospace'; cd.style.fontSize='0.6rem'; cd.textContent=u.unitCode; card.appendChild(cd);
+    const nm=document.createElement('div'); nm.className='bc-name'; nm.textContent=item.name; card.appendChild(nm);
+    if(item.note){ const nt=document.createElement('div'); nt.className='bc-sub'; nt.textContent='📌 '+item.note; card.appendChild(nt); }
+    const cd=document.createElement('div'); cd.className='bc-sub'; cd.style.fontFamily='monospace'; cd.style.fontSize='0.6rem'; cd.textContent=item.id; card.appendChild(cd);
     grid.appendChild(card);
   });
 }
@@ -946,29 +913,22 @@ function toggleQR(key, card) {
   if(selectedQR.has(key)){ selectedQR.delete(key); card.classList.remove('selected'); }
   else { selectedQR.add(key); card.classList.add('selected'); }
 }
-function selectAllQR() {
-  DB.items.forEach(item=>getUnitsForItem(item).forEach(u=>selectedQR.add(u.unitCode)));
-  renderQR();
-}
+function selectAllQR() { DB.items.forEach(item=>selectedQR.add(item.id)); renderQR(); }
 function clearQRSelection() { selectedQR.clear(); renderQR(); }
 
 function printSelectedQR() {
   const sheet = document.getElementById('print-sheet');
   sheet.innerHTML='';
-  let allUnits=[];
-  DB.items.forEach(item=>getUnitsForItem(item).forEach(u=>allUnits.push(u)));
-  const toPrint = selectedQR.size>0 ? allUnits.filter(u=>selectedQR.has(u.unitCode)) : allUnits;
+  const toPrint = selectedQR.size>0 ? DB.items.filter(item=>selectedQR.has(item.id)) : DB.items;
   if(!toPrint.length){ toast('ไม่มีรายการที่เลือก','error'); return; }
-  toPrint.forEach(u=>{
+  toPrint.forEach(item=>{
     const card=document.createElement('div'); card.className='pcard';
     const qrDiv = document.createElement('div');
     qrDiv.style.cssText = 'width:110px;height:110px;margin:0 auto';
-    const qrUrl = BASE_URL + '?scan=' + encodeURIComponent(u.item.id);
-    new QRCode(qrDiv, { text:qrUrl, width:110, height:110, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+    new QRCode(qrDiv, { text:BASE_URL+'?scan='+item.id, width:110, height:110, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
     card.appendChild(qrDiv);
-    const nm=document.createElement('div'); nm.className='pcard-name'; nm.textContent=u.item.name+' #'+u.unitNum; card.appendChild(nm);
-    if(u.item.note){ const nt=document.createElement('div'); nt.className='pcard-note'; nt.textContent=u.item.note; card.appendChild(nt); }
-    const cd=document.createElement('div'); cd.className='pcard-unit'; cd.textContent=u.unitCode; card.appendChild(cd);
+    const nm=document.createElement('div'); nm.className='pcard-name'; nm.textContent=item.name; card.appendChild(nm);
+    if(item.note){ const nt=document.createElement('div'); nt.className='pcard-note'; nt.textContent=item.note; card.appendChild(nt); }
     sheet.appendChild(card);
   });
   setTimeout(()=>window.print(), 300);
