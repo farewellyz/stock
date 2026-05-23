@@ -491,6 +491,34 @@ async function loadAll() {
 
 // ════════ UTILS ════════
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ════════ DATE HELPERS ════════
+function fmtDate(v) {
+  if(!v || v==='') return '—';
+  // already YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(v).trim())) return String(v).trim();
+  // ISO string like 2026-05-22T17:00:00.000Z
+  try {
+    const d = new Date(v);
+    if(!isNaN(d)) {
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    }
+  } catch(e){}
+  return String(v);
+}
+function fmtTime(v) {
+  if(!v || v==='') return '';
+  // already HH:MM
+  if(/^\d{2}:\d{2}$/.test(String(v).trim())) return String(v).trim();
+  // ISO or timestamp
+  try {
+    const d = new Date(v);
+    if(!isNaN(d)) return d.toTimeString().slice(0,5);
+  } catch(e){}
+  return String(v);
+}
+function fmtNum(v) { return isNaN(Number(v)) ? (v||'—') : Number(v); }
 function getBorrowedQty(itemId) {
   return DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').reduce((s,b)=>s+Number(b.qty),0);
 }
@@ -714,7 +742,7 @@ function openReturn(id) {
         <span class="rtag">${b.room}</span>
         <span>ผู้ยืม: <strong style="color:var(--text)">${b.guestName}</strong></span>
       </div>
-      <div style="font-size:0.77rem;color:var(--muted)">ยืมเมื่อ: ${b.borrowDate} ${b.borrowTime}${b.dueDate?` · กำหนดคืน: <span style="color:var(--amber)">${b.dueDate}</span>`:''}</div>
+      <div style="font-size:0.77rem;color:var(--muted)">ยืมเมื่อ: ${fmtDate(b.borrowDate)} ${fmtTime(b.borrowTime)}${b.dueDate?` · กำหนดคืน: <span style="color:var(--amber)">${fmtDate(b.dueDate)}</span>`:''}</div>
     </div>`;
   document.getElementById('fr-id').value=id;
   const now=new Date();
@@ -770,7 +798,7 @@ function renderBorrow() {
   if(!rows.length){ tbody.innerHTML=`<tr><td colspan="10"><div class="empty"><div class="empty-icon">🔑</div><p>ไม่พบรายการ</p></div></td></tr>`; return; }
   const today=new Date().toISOString().split('T')[0];
   tbody.innerHTML=rows.map(b=>{
-    const overdue=b.status==='out'&&b.dueDate&&b.dueDate<today;
+    const overdue=b.status==='out'&&b.dueDate&&fmtDate(b.dueDate)<today;
     const st=b.status==='returned'
       ?`<span class="badge b-in"><span class="bdot"></span>คืนแล้ว</span>`
       :overdue?`<span class="badge b-out"><span class="bdot"></span>เกินกำหนด!</span>`
@@ -782,9 +810,9 @@ function renderBorrow() {
       <td style="font-size:0.84rem">${b.itemName}</td>
       <td>${nc}</td>
       <td style="text-align:center;font-weight:600">${b.qty}</td>
-      <td style="font-size:0.8rem">${b.borrowDate}<br><small style="color:var(--muted)">${b.borrowTime}</small></td>
-      <td style="color:${overdue?'var(--red)':'var(--muted)'};font-size:0.8rem">${b.dueDate||'—'}</td>
-      <td style="font-size:0.8rem">${b.returnDate?`${b.returnDate}<br><small style="color:var(--muted)">${b.returnTime}</small>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:0.8rem">${fmtDate(b.borrowDate)}<br><small style="color:var(--muted)">${fmtTime(b.borrowTime)}</small></td>
+      <td style="color:${overdue?'var(--red)':'var(--muted)'};font-size:0.8rem">${fmtDate(b.dueDate)}</td>
+      <td style="font-size:0.8rem">${b.returnDate?`${fmtDate(b.returnDate)}<br><small style="color:var(--muted)">${fmtTime(b.returnTime)}</small>`:'<span style="color:var(--muted)">—</span>'}</td>
       <td>${st}</td>
       <td class="tdact">
         ${b.status==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
@@ -854,7 +882,7 @@ function updateHeader() {
   const out=DB.borrows.filter(b=>b.status==='out');
   document.getElementById('hdr-out').textContent=out.length;
   const today=new Date().toISOString().split('T')[0];
-  document.getElementById('hdr-overdue').textContent=out.filter(b=>b.dueDate&&b.dueDate<today).length;
+  document.getElementById('hdr-overdue').textContent=out.filter(b=>b.dueDate&&fmtDate(b.dueDate)<today).length;
 }
 
 // ════════ QR ════════
@@ -921,15 +949,14 @@ async function handleScanParam() {
   const params = new URLSearchParams(window.location.search);
   const scanId = params.get('scan');
   if(!scanId) return false;
-  // wait for data to load
+  // load data first (only once)
   await loadAll();
+  renderInventory(); renderBorrow(); renderLog(); updateHeader();
   const item = DB.items.find(i=>i.id===scanId);
   if(!item){ toast('ไม่พบสินค้านี้ในระบบ','error'); return true; }
-  // switch to borrow tab and open modal with pre-filled item
   switchTab('borrow');
   openBorrowFor(scanId);
-  toast(`สแกน: ${item.name} — กรอกข้อมูลแล้วกดบันทึก`,'info');
-  // clean URL
+  toast(`📦 ${item.name} — กรอกชื่อและห้องแล้วกดบันทึก`,'info');
   window.history.replaceState({}, '', BASE_URL);
   return true;
 }
@@ -948,22 +975,32 @@ function toast(msg, type='info') {
 // ════════ INIT ════════
 async function init() {
   const loader = document.getElementById('app-loader');
-  const isScan = await handleScanParam().catch(()=>false);
-  if(!isScan) {
-    await loadAll();
-    renderInventory(); renderBorrow(); renderLog(); updateHeader();
-  } else {
-    renderInventory(); renderBorrow(); updateHeader();
+  try {
+    const isScan = await handleScanParam().catch(()=>false);
+    if(!isScan) {
+      await loadAll();
+      renderInventory(); renderBorrow(); renderLog(); updateHeader();
+    } else {
+      renderInventory(); renderBorrow(); updateHeader();
+    }
+  } catch(e) {
+    setSyncStatus('err','โหลดล้มเหลว');
+    toast('เกิดข้อผิดพลาด: '+e.message,'error');
+  } finally {
+    // ALWAYS hide loader — even if error or scan
+    loader.style.opacity='0'; loader.style.transition='opacity 0.4s';
+    setTimeout(()=>{ if(loader.parentNode) loader.remove(); }, 400);
   }
-  // auto-refresh every 60s (for shared use)
+  // auto-refresh every 60s
   setInterval(async()=>{
-    await loadAll();
-    if(_currentTab==='inventory') renderInventory();
-    if(_currentTab==='borrow') renderBorrow();
-    if(_currentTab==='log') renderLog();
-    updateHeader();
+    try {
+      await loadAll();
+      if(_currentTab==='inventory') renderInventory();
+      if(_currentTab==='borrow') renderBorrow();
+      if(_currentTab==='log') renderLog();
+      updateHeader();
+    } catch(e) { setSyncStatus('err','refresh ล้มเหลว'); }
   }, 60000);
-  setTimeout(()=>{ loader.style.opacity='0'; loader.style.transition='opacity 0.4s'; setTimeout(()=>loader.remove(),400); }, 600);
 }
 
 init();
