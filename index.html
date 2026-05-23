@@ -520,7 +520,7 @@ function fmtTime(v) {
 }
 function fmtNum(v) { return isNaN(Number(v)) ? (v||'—') : Number(v); }
 function getBorrowedQty(itemId) {
-  return DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').reduce((s,b)=>s+Number(b.qty),0);
+  return DB.borrows.filter(b=>b.itemId===itemId&&String(b.status).trim()==='out').reduce((s,b)=>s+Number(b.qty||0),0);
 }
 function getBorrowedRooms(itemId) {
   return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').map(b=>b.room))];
@@ -646,16 +646,16 @@ function renderInventory() {
   const tbody = document.getElementById('inventory-tbody');
   if(!items.length){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">📦</div><p>ไม่พบสินค้า</p></div></td></tr>`; return; }
   tbody.innerHTML = items.map(item=>{
-    const bq=getBorrowedQty(item.id), avail=item.totalQty-bq;
+    const bq=getBorrowedQty(item.id), avail=Number(item.totalQty)-bq;
     const rooms=getBorrowedRooms(item.id);
-    const pct=item.totalQty>0?Math.round((avail/item.totalQty)*100):0;
+    const pct=Number(item.totalQty)>0?Math.round((avail/Number(item.totalQty))*100):0;
     const bc=pct>50?'sf-ok':pct>0?'sf-low':'sf-empty';
     const st=bq===0?`<span class="badge b-in"><span class="bdot"></span>ในคลัง</span>`:bq>=item.totalQty?`<span class="badge b-out"><span class="bdot"></span>หมด</span>`:`<span class="badge b-part"><span class="bdot"></span>บางส่วน</span>`;
     const noteHtml=item.note?`<div style="margin-top:3px"><span class="npill">📌 ${item.note}</span></div>`:'';
     return `<tr>
       <td><strong style="font-size:0.88rem">${item.name}</strong>${noteHtml}</td>
       <td><span style="font-size:0.77rem;color:var(--muted)">${item.category}</span></td>
-      <td style="text-align:center;font-weight:600;color:var(--soft)">${item.totalQty}</td>
+      <td style="text-align:center;font-weight:600;color:var(--soft)">${Number(item.totalQty)}</td>
       <td><div class="sbar"><div class="sbg"><div class="sfill ${bc}" style="width:${pct}%"></div></div><span style="font-weight:600;font-size:0.83rem;color:${pct===0?'var(--red)':pct<50?'var(--amber)':'var(--green)'}">${avail}</span></div></td>
       <td style="text-align:center;color:${bq>0?'var(--red)':'var(--muted)'}">${bq>0?`<strong>${bq}</strong>`:'—'}</td>
       <td>${rooms.length?rooms.map(r=>`<span class="rtag">${r}</span>`).join(' '):'<span style="color:var(--muted)">—</span>'}</td>
@@ -667,7 +667,7 @@ function renderInventory() {
       </td></tr>`;
   }).join('');
   const totalBq=DB.items.reduce((s,i)=>s+getBorrowedQty(i.id),0);
-  const roomsNow=[...new Set(DB.borrows.filter(b=>b.status==='out').map(b=>b.room))];
+  const roomsNow=[...new Set(DB.borrows.filter(b=>String(b.status).trim()==='out').map(b=>b.room))];
   document.getElementById('sum-items').textContent=DB.items.length;
   document.getElementById('sum-instock').textContent=DB.items.filter(i=>getBorrowedQty(i.id)<i.totalQty).length;
   document.getElementById('sum-borrowed').textContent=totalBq;
@@ -791,15 +791,15 @@ function renderBorrow() {
   const q=document.getElementById('borrow-search').value.toLowerCase();
   const f=document.getElementById('borrow-filter').value;
   let rows=DB.borrows.filter(b=>{
-    if(f&&b.status!==f) return false;
+    if(f&&String(b.status).trim()!==f) return false;
     return !q||(b.room+b.guestName+b.itemName+(b.note||'')).toLowerCase().includes(q);
   }).sort((a,b)=>(b.borrowDate+b.borrowTime).localeCompare(a.borrowDate+a.borrowTime));
   const tbody=document.getElementById('borrow-tbody');
   if(!rows.length){ tbody.innerHTML=`<tr><td colspan="10"><div class="empty"><div class="empty-icon">🔑</div><p>ไม่พบรายการ</p></div></td></tr>`; return; }
   const today=new Date().toISOString().split('T')[0];
   tbody.innerHTML=rows.map(b=>{
-    const overdue=b.status==='out'&&b.dueDate&&fmtDate(b.dueDate)<today;
-    const st=b.status==='returned'
+    const overdue=String(b.status).trim()==='out'&&b.dueDate&&fmtDate(b.dueDate)<today;
+    const st=String(b.status).trim()==='returned'
       ?`<span class="badge b-in"><span class="bdot"></span>คืนแล้ว</span>`
       :overdue?`<span class="badge b-out"><span class="bdot"></span>เกินกำหนด!</span>`
       :`<span class="badge b-out"><span class="bdot"></span>ยืมอยู่</span>`;
@@ -819,7 +819,7 @@ function renderBorrow() {
         <button class="btn btn-danger btn-sm" onclick="deleteBorrow('${b.id}')">ลบ</button>
       </td></tr>`;
   }).join('');
-  document.getElementById('badge-borrow').textContent=DB.borrows.filter(b=>b.status==='out').length;
+  document.getElementById('badge-borrow').textContent=DB.borrows.filter(b=>String(b.status).trim()==='out').length;
 }
 
 // ════════ LOG ════════
@@ -851,8 +851,8 @@ function renderLog() {
   if(!rows.length){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div><p>ยังไม่มีประวัติ</p></div></td></tr>`; return; }
   const cc={'ยืมสินค้า':'lc-b','คืนสินค้า':'lc-r','เพิ่มสินค้า':'lc-a','ลบสินค้า':'lc-d'};
   tbody.innerHTML=rows.map(l=>{
-    const nh=l.detail&&!['ยืม','คืน','เพิ่ม','ลบ'].some(p=>l.detail.startsWith(p))
-      ?`<span class="npill">📌 ${l.detail}</span>`
+    const nh=l.detail&&!['ยืม','คืน','เพิ่ม','ลบ'].some(p=>String(l.detail).startsWith(p))
+      ?`<span class="npill">📌 ${String(l.detail)}</span>`
       :`<span style="color:var(--muted);font-size:0.77rem">${l.detail||'—'}</span>`;
     return `<tr>
       <td style="font-size:0.74rem;color:var(--muted);white-space:nowrap">${l.ts}</td>
@@ -879,7 +879,7 @@ function exportCSV() {
 // ════════ HEADER ════════
 function updateHeader() {
   document.getElementById('hdr-total').textContent=DB.items.length;
-  const out=DB.borrows.filter(b=>b.status==='out');
+  const out=DB.borrows.filter(b=>String(b.status).trim()==='out');
   document.getElementById('hdr-out').textContent=out.length;
   const today=new Date().toISOString().split('T')[0];
   document.getElementById('hdr-overdue').textContent=out.filter(b=>b.dueDate&&fmtDate(b.dueDate)<today).length;
