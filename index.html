@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คลังสินค้า — Hotel Inventory</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --dark: #1A1A2E;
+    --dark2: #16213E;
+    --dark3: #0F3460;
+    --surface: #1E2A45;
+    --surface2: #253555;
+    --text: #F0EDE6;
+    --text-muted: #8A9BB8;
+    --green: #4CAF8A;
+    --red: #E05C5C;
+    --blue: #4A90D9;
+    --border: rgba(201,168,76,0.2);
+    --radius: 12px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(201,168,76,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(74,144,217,0.06) 0%, transparent 50%);
+  }
+  .header {
+    background: linear-gradient(135deg, var(--dark2) 0%, var(--dark3) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 1.5rem;
+    height: 64px;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.5);
+  }
+  .header-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem; color: var(--gold);
+    white-space: nowrap; letter-spacing: 0.5px;
+  }
+  .header-logo span { color: var(--text-muted); font-size: 0.75rem; display: block; font-family: 'DM Sans', sans-serif; letter-spacing: 2px; text-transform: uppercase; }
+  .header-divider { width: 1px; height: 36px; background: var(--border); }
+  .header-stats { display: flex; gap: 2rem; flex: 1; }
+  .stat { display: flex; flex-direction: column; }
+  .stat-val { font-size: 1.1rem; font-weight: 600; color: var(--gold); }
+  .stat-lbl { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .header-right { display: flex; gap: 0.75rem; align-items: center; margin-left: auto; }
+  .tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border);
+    background: var(--dark2); padding: 0 2rem;
+  }
+  .tab {
+    padding: 0.85rem 1.5rem; font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;
+    color: var(--text-muted); letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .tab-badge {
+    background: var(--gold); color: var(--dark);
+    font-size: 0.65rem; font-weight: 700;
+    padding: 1px 6px; border-radius: 10px; min-width: 18px; text-align: center;
+  }
+  .main { padding: 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .toolbar {
+    display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1; min-width: 200px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 0.6rem 1rem 0.6rem 2.5rem;
+    color: var(--text); font-family: inherit; font-size: 0.875rem;
+    outline: none; transition: border-color 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238A9BB8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: 0.75rem center;
+  }
+  .search-box:focus { border-color: var(--gold); }
+  .search-box::placeholder { color: var(--text-muted); }
+  .btn {
+    padding: 0.6rem 1.2rem; border-radius: var(--radius); border: none;
+    cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500;
+    display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--gold); color: var(--dark); }
+  .btn-primary:hover { background: var(--gold-light); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+  .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-danger { background: rgba(224,92,92,0.15); color: var(--red); border: 1px solid rgba(224,92,92,0.3); }
+  .btn-success { background: rgba(76,175,138,0.15); color: var(--green); border: 1px solid rgba(76,175,138,0.3); }
+  .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.78rem; }
+  .table-wrap { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  thead th {
+    padding: 0.75rem 1rem; text-align: left;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gold); background: rgba(201,168,76,0.06);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(201,168,76,0.04); }
+  td { padding: 0.75rem 1rem; font-size: 0.875rem; vertical-align: middle; }
+  .td-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  .badge {
+    padding: 0.25rem 0.65rem; border-radius: 6px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.5px;
+    display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .badge-in { background: rgba(76,175,138,0.15); color: var(--green); }
+  .badge-in::before { background: var(--green); }
+  .badge-out { background: rgba(224,92,92,0.15); color: var(--red); }
+  .badge-out::before { background: var(--red); }
+  .badge-partial { background: rgba(201,168,76,0.15); color: var(--gold); }
+  .badge-partial::before { background: var(--gold); }
+  .stock-bar { display: flex; align-items: center; gap: 0.5rem; }
+  .bar-bg { width: 80px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .bar-ok { background: var(--green); }
+  .bar-low { background: var(--gold); }
+  .bar-empty { background: var(--red); }
+  .overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 200; align-items: center; justify-content: center; padding: 1rem;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--dark2); border: 1px solid var(--border);
+    border-radius: 16px; width: 100%; max-width: 560px;
+    box-shadow: var(--shadow); animation: slideUp 0.25s ease;
+    max-height: 90vh; overflow-y: auto;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-head {
+    padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 1.15rem; color: var(--gold); }
+  .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem; padding: 0.25rem; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .modal-foot { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.75rem; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 0.78rem; font-weight: 500; color: var(--text-muted); letter-spacing: 0.5px; }
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 0.9rem;
+    color: var(--text); font-family: inherit; font-size: 0.875rem;
+    outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+  select option { background: var(--dark2); }
+  textarea { resize: vertical; min-height: 80px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; position: relative; overflow: hidden;
+  }
+  .card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .card-gold::after { background: linear-gradient(90deg, var(--gold), var(--gold-light)); }
+  .card-green::after { background: var(--green); }
+  .card-red::after { background: var(--red); }
+  .card-blue::after { background: var(--blue); }
+  .card-icon { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .card-val { font-size: 2rem; font-weight: 700; font-family: 'Playfair Display', serif; color: var(--text); }
+  .card-lbl { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.5px; }
+  .sync-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+  .sync-dot.ok { background: var(--green); animation: pulse 2s infinite; }
+  .sync-dot.err { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999; display: flex; flex-direction: column; gap: 0.5rem; }
+  .toast {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.75rem 1.25rem; font-size: 0.85rem;
+    box-shadow: var(--shadow); animation: fadeIn 0.2s ease;
+    display: flex; align-items: center; gap: 0.5rem; min-width: 260px;
+  }
+  @keyframes fadeIn { from {opacity:0;transform:translateX(20px);} to {opacity:1;transform:none;} }
+  .toast-success { border-left: 3px solid var(--green); }
+  .toast-error { border-left: 3px solid var(--red); }
+  .toast-info { border-left: 3px solid var(--blue); }
+  .empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .empty p { font-size: 0.875rem; }
+  .room-tag {
+    background: rgba(74,144,217,0.15); color: var(--blue);
+    padding: 0.2rem 0.5rem; border-radius: 5px; font-size: 0.78rem; font-weight: 500;
+  }
+  /* Spinning indicator for sync */
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @media (max-width: 768px) {
+    .header { padding: 0 1rem; }
+    .header-stats { display: none; }
+    .main { padding: 1rem; }
+    .tabs { padding: 0 1rem; overflow-x: auto; }
+    .form-row { grid-template-columns: 1fr; }
+    td, th { font-size: 0.78rem; padding: 0.6rem 0.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-logo">
+    ✦ Hotel Inventory
+    <span>ระบบคลังสินค้า</span>
+  </div>
+  <div class="header-divider"></div>
+  <div class="header-stats">
+    <div class="stat"><span class="stat-val" id="hdr-total">0</span><span class="stat-lbl">รายการทั้งหมด</span></div>
+    <div class="stat"><span class="stat-val" id="hdr-out">0</span><span class="stat-lbl">กำลังยืมอยู่</span></div>
+    <div class="stat"><span class="stat-val" id="hdr-overdue">0</span><span class="stat-lbl">เกินกำหนด</span></div>
+  </div>
+  <div class="header-right">
+    <div class="sync-status">
+      <div class="sync-dot ok" id="sync-dot"></div>
+      <span id="sync-text" style="color:var(--green);font-size:0.78rem;">เชื่อมต่อ Sheet แล้ว</span>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="pushAllToSheet()">⬆ Sync Sheet</button>
+  </div>
+</header>
+
+<!-- Tabs (3 tabs only) -->
+<nav class="tabs">
+  <div class="tab active" onclick="switchTab('inventory')" id="tab-inventory">📦 คลังสินค้า <span class="tab-badge" id="badge-inventory">0</span></div>
+  <div class="tab" onclick="switchTab('borrow')" id="tab-borrow">🔑 การยืม–คืน <span class="tab-badge" id="badge-borrow">0</span></div>
+  <div class="tab" onclick="switchTab('log')" id="tab-log">📋 ประวัติทั้งหมด</div>
+</nav>
+
+<main class="main">
+
+  <!-- ═══ INVENTORY ═══ -->
+  <div class="page active" id="page-inventory">
+    <div class="cards">
+      <div class="card card-gold"><div class="card-icon">📦</div><div class="card-val" id="sum-items">0</div><div class="card-lbl">รายการสินค้า</div></div>
+      <div class="card card-green"><div class="card-icon">✅</div><div class="card-val" id="sum-instock">0</div><div class="card-lbl">พร้อมใช้งาน</div></div>
+      <div class="card card-red"><div class="card-icon">🔑</div><div class="card-val" id="sum-borrowed">0</div><div class="card-lbl">กำลังถูกยืม</div></div>
+      <div class="card card-blue"><div class="card-icon">🏨</div><div class="card-val" id="sum-rooms">0</div><div class="card-lbl">ห้องที่ยืมอยู่</div></div>
+    </div>
+    <div class="toolbar">
+      <input class="search-box" type="text" placeholder="ค้นหาสินค้า..." id="inv-search" oninput="renderInventory()">
+      <select class="btn btn-outline" id="inv-filter" onchange="renderInventory()" style="padding:0.6rem 0.9rem;">
+        <option value="">ทุกสถานะ</option>
+        <option value="in">ในคลัง</option>
+        <option value="out">ถูกยืม</option>
+      </select>
+      <button class="btn btn-primary" onclick="openModal('modal-add-item')">＋ เพิ่มสินค้า</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>รายการสินค้า</th>
+            <th>ประเภท</th>
+            <th>ทั้งหมด</th>
+            <th>คงเหลือ</th>
+            <th>ถูกยืม</th>
+            <th>ห้องที่ยืม</th>
+            <th>สถานะ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ BORROW ═══ -->
+  <div class="page" id="page-borrow">
+    <div class="toolbar">
+      <input class="search-box" type="text" placeholder="ค้นหาห้อง / ชื่อผู้ยืม / สินค้า..." id="borrow-search" oninput="renderBorrow()">
+      <select class="btn btn-outline" id="borrow-filter" onchange="renderBorrow()" style="padding:0.6rem 0.9rem;">
+        <option value="">ทุกสถานะ</option>
+        <option value="out">ยืมอยู่</option>
+        <option value="returned">คืนแล้ว</option>
+      </select>
+      <button class="btn btn-primary" onclick="openModal('modal-borrow')">＋ บันทึกการยืม</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ห้อง</th>
+            <th>ชื่อผู้ยืม</th>
+            <th>สินค้า</th>
+            <th>จำนวน</th>
+            <th>วันที่ยืม</th>
+            <th>เวลายืม</th>
+            <th>กำหนดคืน</th>
+            <th>วัน-เวลาคืน</th>
+            <th>สถานะ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="borrow-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ LOG ═══ -->
+  <div class="page" id="page-log">
+    <div class="toolbar">
+      <input class="search-box" type="text" placeholder="ค้นหาในประวัติ..." id="log-search" oninput="renderLog()">
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="btn btn-success btn-sm" onclick="pushAllToSheet()">⬆ Push ทั้งหมดขึ้น Sheet</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>วันเวลา</th>
+            <th>ประเภท</th>
+            <th>ห้อง</th>
+            <th>ผู้เกี่ยวข้อง</th>
+            <th>สินค้า</th>
+            <th>จำนวน</th>
+            <th>รายละเอียด</th>
+          </tr>
+        </thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Add Item -->
+<div class="overlay" id="modal-add-item">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">เพิ่มสินค้าใหม่</div>
+      <button class="modal-close" onclick="closeModal('modal-add-item')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full"><label>ชื่อสินค้า *</label><input id="fi-name" placeholder="เช่น ผ้าขนหนู, หมอน, รีโมทแอร์..."></div>
+        <div class="form-group">
+          <label>ประเภท</label>
+          <select id="fi-cat">
+            <option>ผ้าและเครื่องนอน</option><option>อุปกรณ์ไฟฟ้า</option>
+            <option>เฟอร์นิเจอร์</option><option>ของใช้ห้องน้ำ</option>
+            <option>กุญแจ/การ์ด</option><option>อื่นๆ</option>
+          </select>
+        </div>
+        <div class="form-group"><label>จำนวนทั้งหมด *</label><input id="fi-qty" type="number" min="1" value="1"></div>
+        <div class="form-group full"><label>หมายเหตุ</label><input id="fi-note" placeholder="(ไม่บังคับ)"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-item')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="addItem()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Borrow — ชื่อผู้ยืมเป็น input พิมพ์ได้เลย -->
+<div class="overlay" id="modal-borrow">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">บันทึกการยืมสินค้า</div>
+      <button class="modal-close" onclick="closeModal('modal-borrow')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>ชื่อผู้ยืม *</label><input id="fb-guest" placeholder="พิมพ์ชื่อผู้เข้าพัก..."></div>
+        <div class="form-group"><label>หมายเลขห้อง *</label><input id="fb-room" placeholder="เช่น 101, 205..."></div>
+        <div class="form-group full">
+          <label>สินค้าที่ยืม *</label>
+          <select id="fb-item"><option value="">— เลือกสินค้า —</option></select>
+        </div>
+        <div class="form-group"><label>จำนวน *</label><input id="fb-qty" type="number" min="1" value="1"></div>
+        <div class="form-group"><label>กำหนดคืน</label><input id="fb-due" type="date"></div>
+        <div class="form-group"><label>วันที่ยืม *</label><input id="fb-date" type="date"></div>
+        <div class="form-group"><label>เวลาที่ยืม *</label><input id="fb-time" type="time"></div>
+        <div class="form-group full"><label>หมายเหตุ</label><input id="fb-note" placeholder="(ไม่บังคับ)"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('modal-borrow')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="addBorrow()">บันทึกการยืม</button>
+    </div>
+  </div>
+</div>
+
+<!-- Return -->
+<div class="overlay" id="modal-return">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">บันทึกการคืนสินค้า</div>
+      <button class="modal-close" onclick="closeModal('modal-return')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="return-info" style="background:var(--surface);border-radius:8px;padding:1rem;font-size:0.875rem;color:var(--text-muted);"></div>
+      <div class="form-row">
+        <div class="form-group"><label>วันที่คืน *</label><input id="fr-date" type="date"></div>
+        <div class="form-group"><label>เวลาที่คืน *</label><input id="fr-time" type="time"></div>
+        <div class="form-group full"><label>หมายเหตุการคืน</label><input id="fr-note" placeholder="สภาพสินค้า, หมายเหตุ..."></div>
+      </div>
+      <input type="hidden" id="fr-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('modal-return')">ยกเลิก</button>
+      <button class="btn btn-success" onclick="doReturn()">✓ ยืนยันการคืน</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Item -->
+<div class="overlay" id="modal-edit-item">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">แก้ไขสินค้า</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-item')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full"><label>ชื่อสินค้า *</label><input id="ei-name"></div>
+        <div class="form-group">
+          <label>ประเภท</label>
+          <select id="ei-cat">
+            <option>ผ้าและเครื่องนอน</option><option>อุปกรณ์ไฟฟ้า</option>
+            <option>เฟอร์นิเจอร์</option><option>ของใช้ห้องน้ำ</option>
+            <option>กุญแจ/การ์ด</option><option>อื่นๆ</option>
+          </select>
+        </div>
+        <div class="form-group"><label>จำนวนทั้งหมด *</label><input id="ei-qty" type="number" min="1"></div>
+        <div class="form-group full"><label>หมายเหตุ</label><input id="ei-note"></div>
+      </div>
+      <input type="hidden" id="ei-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('modal-edit-item')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveEditItem()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ════════ CONFIG — hardcoded ════════
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzzdS46W0gewTZwxoOoFGW3vp9FUQztxcp4Woyf31VzTe4aFfH-i-piEw8EMCzU_Sw/exec';
+const SHEET_ID  = '1tTKUO4DjrNy3HgGtsZhlR5jRrQXn6q1YA5znCtayTVE';
+
+// ════════ DATA ════════
+let DB = { items: [], borrows: [], log: [] };
+
+function saveDB() { try { localStorage.setItem('hotel_inv_v2', JSON.stringify(DB)); } catch(e){} }
+function loadDB() { try { const r = localStorage.getItem('hotel_inv_v2'); if(r) DB = {...DB, ...JSON.parse(r)}; } catch(e){} }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ════════ TABS ════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('page-'+name).classList.add('active');
+  if (name==='inventory') renderInventory();
+  if (name==='borrow') renderBorrow();
+  if (name==='log') renderLog();
+}
+
+// ════════ MODAL ════════
+function openModal(id) {
+  if (id==='modal-borrow') populateBorrowModal();
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ════════ ITEMS ════════
+function addItem() {
+  const name = document.getElementById('fi-name').value.trim();
+  const qty  = parseInt(document.getElementById('fi-qty').value)||0;
+  if (!name||qty<1) { toast('กรุณากรอกชื่อและจำนวน','error'); return; }
+  const item = { id:uid(), name, category:document.getElementById('fi-cat').value, totalQty:qty, note:document.getElementById('fi-note').value, createdAt:new Date().toISOString() };
+  DB.items.push(item);
+  addLog('เพิ่มสินค้า','','',name,qty,`เพิ่มสินค้า ${qty} ชิ้น`);
+  saveDB(); renderInventory(); updateHeader();
+  closeModal('modal-add-item');
+  toast(`เพิ่ม "${name}" สำเร็จ`,'success');
+  pushRow('คลังสินค้า', [new Date().toLocaleString('th-TH'), item.name, item.category, item.totalQty, item.note]);
+  document.getElementById('fi-name').value=''; document.getElementById('fi-note').value=''; document.getElementById('fi-qty').value='1';
+}
+
+function openEditItem(id) {
+  const item = DB.items.find(i=>i.id===id);
+  if(!item) return;
+  document.getElementById('ei-id').value = id;
+  document.getElementById('ei-name').value = item.name;
+  document.getElementById('ei-cat').value = item.category;
+  document.getElementById('ei-qty').value = item.totalQty;
+  document.getElementById('ei-note').value = item.note||'';
+  openModal('modal-edit-item');
+}
+
+function saveEditItem() {
+  const id = document.getElementById('ei-id').value;
+  const item = DB.items.find(i=>i.id===id);
+  if(!item) return;
+  const newQty = parseInt(document.getElementById('ei-qty').value)||0;
+  const bq = getBorrowedQty(id);
+  if(newQty < bq) { toast(`จำนวนน้อยกว่าที่ยืมอยู่ (${bq} ชิ้น)`,'error'); return; }
+  item.name = document.getElementById('ei-name').value.trim();
+  item.category = document.getElementById('ei-cat').value;
+  item.totalQty = newQty;
+  item.note = document.getElementById('ei-note').value;
+  saveDB(); renderInventory();
+  closeModal('modal-edit-item');
+  toast('แก้ไขสินค้าสำเร็จ','success');
+}
+
+function deleteItem(id) {
+  const item = DB.items.find(i=>i.id===id);
+  if(!item) return;
+  if(DB.borrows.some(b=>b.itemId===id&&b.status==='out')) { toast('ไม่สามารถลบได้ มีการยืมค้างอยู่','error'); return; }
+  if(!confirm(`ลบ "${item.name}" ออกจากระบบ?`)) return;
+  DB.items = DB.items.filter(i=>i.id!==id);
+  addLog('ลบสินค้า','','',item.name,0,'ลบออกจากระบบ');
+  saveDB(); renderInventory(); updateHeader();
+  toast(`ลบ "${item.name}" แล้ว`,'info');
+}
+
+function getBorrowedQty(itemId) {
+  return DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').reduce((s,b)=>s+b.qty,0);
+}
+function getBorrowedRooms(itemId) {
+  return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').map(b=>b.room))];
+}
+
+function renderInventory() {
+  const q = document.getElementById('inv-search').value.toLowerCase();
+  const f = document.getElementById('inv-filter').value;
+  let items = DB.items.filter(i=>{
+    const bq = getBorrowedQty(i.id);
+    if(f==='in'&&bq>=i.totalQty) return false;
+    if(f==='out'&&bq===0) return false;
+    return !q||(i.name+i.category).toLowerCase().includes(q);
+  });
+  const tbody = document.getElementById('inventory-tbody');
+  if(!items.length){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">📦</div><p>ไม่พบรายการสินค้า</p></div></td></tr>`; return; }
+  tbody.innerHTML = items.map(item=>{
+    const bq=getBorrowedQty(item.id), avail=item.totalQty-bq;
+    const rooms=getBorrowedRooms(item.id);
+    const pct=item.totalQty>0?Math.round((avail/item.totalQty)*100):0;
+    const bc=pct>50?'bar-ok':pct>0?'bar-low':'bar-empty';
+    const status=bq===0?'<span class="badge badge-in">ในคลัง</span>':bq>=item.totalQty?'<span class="badge badge-out">หมด</span>':'<span class="badge badge-partial">บางส่วน</span>';
+    return `<tr>
+      <td><strong>${item.name}</strong>${item.note?`<br><small style="color:var(--text-muted)">${item.note}</small>`:''}</td>
+      <td><span style="font-size:0.8rem;color:var(--text-muted)">${item.category}</span></td>
+      <td style="text-align:center;font-weight:600">${item.totalQty}</td>
+      <td><div class="stock-bar"><div class="bar-bg"><div class="bar-fill ${bc}" style="width:${pct}%"></div></div><span style="font-weight:600;color:${pct===0?'var(--red)':pct<50?'var(--gold)':'var(--green)'}">${avail}</span></div></td>
+      <td style="text-align:center;color:${bq>0?'var(--red)':'var(--text-muted)'}">${bq>0?`<strong>${bq}</strong>`:'—'}</td>
+      <td>${rooms.length?rooms.map(r=>`<span class="room-tag">${r}</span>`).join(' '):'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${status}</td>
+      <td class="td-actions">
+        <button class="btn btn-success btn-sm" onclick="openBorrowFor('${item.id}')">ยืม</button>
+        <button class="btn btn-outline btn-sm" onclick="openEditItem('${item.id}')">แก้ไข</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('${item.id}')">ลบ</button>
+      </td></tr>`;
+  }).join('');
+  const totalBq = DB.items.reduce((s,i)=>s+getBorrowedQty(i.id),0);
+  const roomsNow=[...new Set(DB.borrows.filter(b=>b.status==='out').map(b=>b.room))];
+  document.getElementById('sum-items').textContent=DB.items.length;
+  document.getElementById('sum-instock').textContent=DB.items.filter(i=>getBorrowedQty(i.id)<i.totalQty).length;
+  document.getElementById('sum-borrowed').textContent=totalBq;
+  document.getElementById('sum-rooms').textContent=roomsNow.length;
+  document.getElementById('badge-inventory').textContent=DB.items.length;
+}
+
+// ════════ BORROW ════════
+function populateBorrowModal() {
+  const si=document.getElementById('fb-item');
+  si.innerHTML='<option value="">— เลือกสินค้า —</option>'+DB.items.map(i=>{
+    const avail=i.totalQty-getBorrowedQty(i.id);
+    return `<option value="${i.id}" ${avail<1?'disabled':''} data-name="${i.name}">${i.name} (เหลือ ${avail})</option>`;
+  }).join('');
+  const now=new Date();
+  document.getElementById('fb-date').value=now.toISOString().split('T')[0];
+  document.getElementById('fb-time').value=now.toTimeString().slice(0,5);
+}
+
+function openBorrowFor(itemId) {
+  openModal('modal-borrow');
+  setTimeout(()=>{ document.getElementById('fb-item').value=itemId; },80);
+}
+
+function addBorrow() {
+  const guestName=document.getElementById('fb-guest').value.trim();
+  const room=document.getElementById('fb-room').value.trim();
+  const itemId=document.getElementById('fb-item').value;
+  const qty=parseInt(document.getElementById('fb-qty').value)||0;
+  const date=document.getElementById('fb-date').value;
+  const time=document.getElementById('fb-time').value;
+  if(!guestName||!room||!itemId||qty<1||!date||!time){toast('กรุณากรอกข้อมูลให้ครบ','error');return;}
+  const item=DB.items.find(i=>i.id===itemId);
+  const avail=item.totalQty-getBorrowedQty(itemId);
+  if(qty>avail){toast(`มีของเหลือแค่ ${avail} ชิ้น`,'error');return;}
+  const borrow={
+    id:uid(), itemId, itemName:item.name,
+    guestName, room, qty,
+    borrowDate:date, borrowTime:time,
+    dueDate:document.getElementById('fb-due').value,
+    returnDate:'', returnTime:'', returnNote:'',
+    note:document.getElementById('fb-note').value,
+    status:'out'
+  };
+  DB.borrows.push(borrow);
+  addLog('ยืมสินค้า',room,guestName,item.name,qty,`ยืม ${qty} ชิ้น`);
+  saveDB(); renderBorrow(); renderInventory(); updateHeader();
+  closeModal('modal-borrow');
+  toast(`"${item.name}" ห้อง ${room} — บันทึกแล้ว ✓`,'success');
+  pushRow('การยืม-คืน',[borrow.borrowDate,borrow.borrowTime,borrow.room,borrow.guestName,borrow.itemName,borrow.qty,borrow.dueDate,'','','ยืมอยู่',borrow.note]);
+  ['fb-guest','fb-room','fb-qty','fb-note','fb-due'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=id==='fb-qty'?'1':'';});
+}
+
+function openReturn(id) {
+  const b=DB.borrows.find(x=>x.id===id);
+  if(!b) return;
+  document.getElementById('return-info').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:0.3rem;">
+      <div><strong style="color:var(--text);font-size:1rem">${b.itemName}</strong> × ${b.qty}</div>
+      <div>ห้อง: <span class="room-tag">${b.room}</span> &nbsp;|&nbsp; ผู้ยืม: <strong>${b.guestName}</strong></div>
+      <div style="font-size:0.8rem">ยืมเมื่อ: ${b.borrowDate} เวลา ${b.borrowTime}${b.dueDate?` &nbsp;|&nbsp; กำหนดคืน: ${b.dueDate}`:''}</div>
+    </div>`;
+  document.getElementById('fr-id').value=id;
+  const now=new Date();
+  document.getElementById('fr-date').value=now.toISOString().split('T')[0];
+  document.getElementById('fr-time').value=now.toTimeString().slice(0,5);
+  document.getElementById('fr-note').value='';
+  openModal('modal-return');
+}
+
+function doReturn() {
+  const id=document.getElementById('fr-id').value;
+  const b=DB.borrows.find(x=>x.id===id);
+  if(!b) return;
+  const rDate=document.getElementById('fr-date').value;
+  const rTime=document.getElementById('fr-time').value;
+  if(!rDate||!rTime){toast('กรุณาใส่วันและเวลาคืน','error');return;}
+  b.returnDate=rDate; b.returnTime=rTime;
+  b.returnNote=document.getElementById('fr-note').value;
+  b.status='returned';
+  addLog('คืนสินค้า',b.room,b.guestName,b.itemName,b.qty,`คืน ${b.qty} ชิ้น`);
+  saveDB(); renderBorrow(); renderInventory(); updateHeader();
+  closeModal('modal-return');
+  toast(`"${b.itemName}" ห้อง ${b.room} คืนแล้ว ✓`,'success');
+  pushRow('การยืม-คืน',[b.borrowDate,b.borrowTime,b.room,b.guestName,b.itemName,b.qty,b.dueDate,b.returnDate,b.returnTime,'คืนแล้ว',b.returnNote]);
+}
+
+function deleteBorrow(id) {
+  if(!confirm('ลบรายการยืมนี้?')) return;
+  DB.borrows=DB.borrows.filter(b=>b.id!==id);
+  saveDB(); renderBorrow(); renderInventory(); updateHeader();
+  toast('ลบรายการยืมแล้ว','info');
+}
+
+function renderBorrow() {
+  const q=document.getElementById('borrow-search').value.toLowerCase();
+  const f=document.getElementById('borrow-filter').value;
+  let rows=DB.borrows.filter(b=>{
+    if(f&&b.status!==f) return false;
+    return !q||(b.room+b.guestName+b.itemName).toLowerCase().includes(q);
+  }).sort((a,b)=>(b.borrowDate+b.borrowTime).localeCompare(a.borrowDate+a.borrowTime));
+  const tbody=document.getElementById('borrow-tbody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty"><div class="empty-icon">🔑</div><p>ไม่พบรายการ</p></div></td></tr>`;return;}
+  const today=new Date().toISOString().split('T')[0];
+  tbody.innerHTML=rows.map(b=>{
+    const overdue=b.status==='out'&&b.dueDate&&b.dueDate<today;
+    const status=b.status==='returned'
+      ?'<span class="badge badge-in">คืนแล้ว ✓</span>'
+      :overdue?'<span class="badge badge-out">เกินกำหนด!</span>'
+      :'<span class="badge badge-out">ยืมอยู่</span>';
+    return `<tr style="${overdue?'background:rgba(224,92,92,0.05)':''}">
+      <td><span class="room-tag">${b.room}</span></td>
+      <td><strong>${b.guestName}</strong></td>
+      <td>${b.itemName}</td>
+      <td style="text-align:center">${b.qty}</td>
+      <td>${b.borrowDate}</td>
+      <td style="color:var(--text-muted)">${b.borrowTime}</td>
+      <td style="color:${overdue?'var(--red)':'var(--text-muted)'}">${b.dueDate||'—'}</td>
+      <td>${b.returnDate?`${b.returnDate}<br><small style="color:var(--text-muted)">${b.returnTime}</small>`:'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${status}</td>
+      <td class="td-actions">
+        ${b.status==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
+        <button class="btn btn-danger btn-sm" onclick="deleteBorrow('${b.id}')">ลบ</button>
+      </td></tr>`;
+  }).join('');
+  document.getElementById('badge-borrow').textContent=DB.borrows.filter(b=>b.status==='out').length;
+}
+
+// ════════ LOG ════════
+function addLog(type,room,person,item,qty,detail){
+  DB.log.unshift({ts:new Date().toLocaleString('th-TH'),type,room,person,item,qty,detail});
+  if(DB.log.length>500) DB.log=DB.log.slice(0,500);
+}
+function renderLog(){
+  const q=document.getElementById('log-search').value.toLowerCase();
+  const rows=DB.log.filter(l=>!q||JSON.stringify(l).toLowerCase().includes(q));
+  const tbody=document.getElementById('log-tbody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-icon">📋</div><p>ยังไม่มีประวัติ</p></div></td></tr>`;return;}
+  const typeColor={'ยืมสินค้า':'var(--red)','คืนสินค้า':'var(--green)','เพิ่มสินค้า':'var(--text-muted)','ลบสินค้า':'var(--red)'};
+  tbody.innerHTML=rows.map(l=>`<tr>
+    <td style="font-size:0.78rem;color:var(--text-muted)">${l.ts}</td>
+    <td><span style="color:${typeColor[l.type]||'var(--blue)'};font-weight:600;font-size:0.8rem">${l.type}</span></td>
+    <td>${l.room?`<span class="room-tag">${l.room}</span>`:'—'}</td>
+    <td>${l.person||'—'}</td>
+    <td>${l.item||'—'}</td>
+    <td style="text-align:center">${l.qty||'—'}</td>
+    <td style="color:var(--text-muted);font-size:0.8rem">${l.detail||'—'}</td>
+  </tr>`).join('');
+}
+function exportCSV(){
+  const h=['วันเวลา','ประเภท','ห้อง','ผู้เกี่ยวข้อง','สินค้า','จำนวน','รายละเอียด'];
+  const r=DB.log.map(l=>[l.ts,l.type,l.room,l.person,l.item,l.qty,l.detail].map(v=>`"${v||''}"`).join(','));
+  const csv='\uFEFF'+[h.join(','),...r].join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`hotel_inventory_${new Date().toISOString().split('T')[0]}.csv`;a.click();
+  toast('Export CSV สำเร็จ','success');
+}
+
+// ════════ HEADER ════════
+function updateHeader(){
+  document.getElementById('hdr-total').textContent=DB.items.length;
+  const out=DB.borrows.filter(b=>b.status==='out');
+  document.getElementById('hdr-out').textContent=out.length;
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('hdr-overdue').textContent=out.filter(b=>b.dueDate&&b.dueDate<today).length;
+}
+
+// ════════ GOOGLE SHEET ════════
+async function pushRow(sheetName, row) {
+  try {
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'append', sheet:sheetName, row, sheetId:SHEET_ID})
+    });
+  } catch(e){}
+}
+
+async function pushAllToSheet(){
+  toast('กำลัง Sync ข้อมูลขึ้น Google Sheet... ⏳','info');
+  const invH=['วันที่เพิ่ม','ชื่อสินค้า','ประเภท','จำนวน','หมายเหตุ'];
+  const invR=DB.items.map(i=>[i.createdAt,i.name,i.category,i.totalQty,i.note]);
+  const bH=['วันที่ยืม','เวลายืม','ห้อง','ชื่อผู้ยืม','สินค้า','จำนวน','กำหนดคืน','วันคืน','เวลาคืน','สถานะ','หมายเหตุ'];
+  const bR=DB.borrows.map(b=>[b.borrowDate,b.borrowTime,b.room,b.guestName,b.itemName,b.qty,b.dueDate,b.returnDate,b.returnTime,b.status==='out'?'ยืมอยู่':'คืนแล้ว',b.note]);
+  try {
+    for(const [sheet,headers,rows] of [['คลังสินค้า',invH,invR],['การยืม-คืน',bH,bR]]){
+      await fetch(SHEET_URL,{
+        method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'clear_append',sheet,headers,rows,sheetId:SHEET_ID})
+      });
+    }
+    toast('Sync Google Sheet สำเร็จ ✓','success');
+    document.getElementById('sync-dot').className='sync-dot ok';
+    document.getElementById('sync-text').textContent='Synced — '+new Date().toLocaleTimeString('th-TH');
+  } catch(e){ toast('Sync ล้มเหลว: '+e.message,'error'); }
+}
+
+// ════════ INIT ════════
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});
+});
+
+function toast(msg,type='info'){
+  const c=document.getElementById('toast-container');
+  const el=document.createElement('div');
+  el.className=`toast toast-${type}`;
+  el.innerHTML=`${type==='success'?'✓':type==='error'?'✕':'ℹ'} ${msg}`;
+  c.appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+function init(){
+  loadDB();
+  if(DB.items.length===0){
+    DB.items=[
+      {id:uid(),name:'Google Chromecast',category:'อุปกรณ์ไฟฟ้า',totalQty:5,note:'รุ่น 4K',createdAt:'2026-05-23T10:00:00Z'},
+      {id:uid(),name:'ผ้าขนหนูใหญ่',category:'ผ้าและเครื่องนอน',totalQty:20,note:'',createdAt:'2026-05-23T10:00:00Z'},
+      {id:uid(),name:'หมอน',category:'ผ้าและเครื่องนอน',totalQty:30,note:'',createdAt:'2026-05-23T10:00:00Z'},
+      {id:uid(),name:'กุญแจห้องสำรอง',category:'กุญแจ/การ์ด',totalQty:10,note:'',createdAt:'2026-05-23T10:00:00Z'},
+      {id:uid(),name:'รีโมทแอร์',category:'อุปกรณ์ไฟฟ้า',totalQty:8,note:'',createdAt:'2026-05-23T10:00:00Z'},
+    ];
+    saveDB();
+  }
+  renderInventory(); renderBorrow(); renderLog(); updateHeader();
+}
+init();
+</script>
+</body>
+</html>
