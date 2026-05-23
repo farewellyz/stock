@@ -465,7 +465,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 
 <script>
 // ════════ CONFIG ════════
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxWOkLroP1QxX4XohHi68QYPAUAElBpXEaJ96_vQEdNdZCUXkl6b2hs7HViVYQSxxcq/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx2-CKoH961Cd4nUiEKqRm6aMV_JRadMs0FZfekbyrCLI8mG7PreQQQz-4gg6WdE2Xc/exec';
 const BASE_URL  = window.location.href.split('?')[0];
 
 // ════════ STATE ════════
@@ -512,7 +512,7 @@ async function loadAll() {
 }
 
 // ════════ UTILS ════════
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function uid() { return Date.now().toString() + Math.floor(Math.random()*1000).toString().padStart(3,'0'); }
 
 // ════════ DATE HELPERS ════════
 function fmtDate(v) {
@@ -1012,8 +1012,11 @@ async function openScannerModal() {
 async function startScanner() {
   try {
     if(!window.ZXing){ toast('ไม่พบ ZXing library','error'); return; }
-    // ใช้ BrowserBarcodeReader (Code128 only) แทน MultiFormat — decode alphanumeric ถูกต้องกว่า
-    _scanReader = new ZXing.BrowserBarcodeReader();
+    // BrowserMultiFormatReader พร้อม hints บังคับ CODE128 เท่านั้น
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    _scanReader = new ZXing.BrowserMultiFormatReader(hints);
 
     // ขอสิทธิ์กล้องก่อน พร้อมบังคับกล้องหลังตั้งแต่แรก
     try {
