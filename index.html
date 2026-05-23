@@ -930,7 +930,7 @@ function renderQR() {
     // barcode svg
     const wrap = document.createElement('div');
     wrap.className='bc-svg-wrap';
-    wrap.appendChild(makeBarcodeEl(u.unitCode));
+    wrap.appendChild(makeBarcodeEl(u.item.id));
     card.appendChild(wrap);
     // name
     const nm=document.createElement('div'); nm.className='bc-name'; nm.textContent=u.item.name; card.appendChild(nm);
