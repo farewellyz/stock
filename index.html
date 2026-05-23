@@ -1012,7 +1012,8 @@ async function openScannerModal() {
 async function startScanner() {
   try {
     if(!window.ZXing){ toast('ไม่พบ ZXing library','error'); return; }
-    _scanReader = new ZXing.BrowserMultiFormatReader();
+    // ใช้ BrowserBarcodeReader (Code128 only) แทน MultiFormat — decode alphanumeric ถูกต้องกว่า
+    _scanReader = new ZXing.BrowserBarcodeReader();
 
     // ขอสิทธิ์กล้องก่อน พร้อมบังคับกล้องหลังตั้งแต่แรก
     try {
@@ -1037,7 +1038,11 @@ async function startScanner() {
     const constraints = { video: { facingMode: { ideal: 'environment' } } };
     await _scanReader.decodeFromConstraints(constraints, 'scan-video', (result, err) => {
       if(!_scanActive) return;
-      if(result) handleBarcodeScan(result.getText());
+      if(result) {
+        const raw = result.getText();
+        document.getElementById('scan-hint').textContent = 'อ่านได้: ' + raw;
+        handleBarcodeScan(raw);
+      }
     });
   } catch(e) {
     document.getElementById('scan-hint').textContent='เปิดกล้องไม่ได้: '+e.message;
