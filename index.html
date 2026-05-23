@@ -458,13 +458,14 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 
 <script>
 // ════════ CONFIG ════════
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx2LKSO9V4qtg5cWaewI-RhkMj88RILS3h4TMXwKfP9DlHX0I78RPwx_WoOEL6ktG_p/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwqmQyMzqvPcmuSEfWAiddxg1_ZWUed1h3on8rUJko1CBhEyFan03PqDABn-c_3_7Sp/exec';
 const BASE_URL  = 'https://stock-eight-psi.vercel.app/';
 
 // ════════ STATE ════════
 let DB = { items:[], borrows:[], log:[] };
 let selectedQR = new Set();
 let _currentTab = 'inventory';
+let _scanToken = null; // token หลัง verify pin สำเร็จ
 
 // ════════ API ════════
 function setSyncStatus(state, text) {
@@ -988,31 +989,119 @@ function printSelectedQR() {
 
 
 // ════════ MOBILE SCAN HANDLER ════════
-// ?push=itemId  → มือถือสแกน QR แล้วเปิด URL นี้ → POST ไป Sheets แล้วปิดหน้า
-// ?scan=itemId  → backward compat เปิดฟอร์มในหน้าเดิม
+// cookie helpers
+function setCookie(name, val, days) {
+  const d = new Date(); d.setTime(d.getTime() + days*24*60*60*1000);
+  document.cookie = name+'='+encodeURIComponent(val)+';expires='+d.toUTCString()+';path=/';
+}
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(?:^|; )'+name+'=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// แสดงหน้า PIN สำหรับมือถือ แล้ว resolve token เมื่อผ่าน
+function showPinScreen(itemId) {
+  return new Promise(resolve => {
+    document.body.innerHTML = `
+      <div id="pin-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;background:#0E1320;color:#EDE9E0;
+        font-family:'DM Sans',sans-serif;gap:1rem;padding:2rem;text-align:center">
+        <div style="font-size:2.5rem">🔐</div>
+        <div style="font-size:1.2rem;font-weight:600;color:#C9A84C">ยืนยันตัวตน</div>
+        <div style="color:#7A8FAD;font-size:0.85rem">กรุณาใส่รหัสก่อนสแกนสินค้า</div>
+        <input id="pin-input" type="password" autocomplete="current-password"
+          placeholder="รหัส..." autofocus
+          style="margin-top:0.5rem;padding:0.75rem 1.2rem;border-radius:12px;border:1.5px solid #243250;
+            background:#172033;color:#EDE9E0;font-size:1.1rem;text-align:center;width:220px;outline:none;
+            letter-spacing:0.1em">
+        <div id="pin-err" style="color:#E05C5C;font-size:0.82rem;min-height:1.2rem"></div>
+        <button id="pin-btn"
+          style="padding:0.75rem 2.5rem;background:#C9A84C;color:#0E1320;border:none;
+            border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer">ยืนยัน</button>
+        <div style="color:#7A8FAD;font-size:0.72rem;margin-top:0.5rem">รหัสนี้จะถูกจำไว้ 7 วัน</div>
+      </div>`;
+    async function tryPin() {
+      const pin = document.getElementById('pin-input').value.trim();
+      const btn = document.getElementById('pin-btn');
+      const err = document.getElementById('pin-err');
+      if(!pin){ err.textContent='กรุณาใส่รหัส'; return; }
+      btn.disabled=true; btn.textContent='กำลังตรวจสอบ...';
+      try {
+        const res = await fetch(SHEET_URL+'?action=verifyPin&pin='+encodeURIComponent(pin));
+        const r = await res.json();
+        if(r.status==='ok'){
+          setCookie('scan_token', r.token, 7);
+          resolve(r.token);
+        } else {
+          err.textContent='รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง';
+          btn.disabled=false; btn.textContent='ยืนยัน';
+          document.getElementById('pin-input').value='';
+          document.getElementById('pin-input').focus();
+        }
+      } catch(e){
+        err.textContent='เชื่อมต่อไม่ได้ ลองใหม่';
+        btn.disabled=false; btn.textContent='ยืนยัน';
+      }
+    }
+    // bind หลัง render
+    setTimeout(()=>{
+      document.getElementById('pin-btn').onclick = tryPin;
+      document.getElementById('pin-input').onkeydown = e=>{ if(e.key==='Enter') tryPin(); };
+    }, 50);
+  });
+}
+
 async function handleScanParam() {
   const params = new URLSearchParams(window.location.search);
-
-  // มือถือสแกน → push ไป Sheets queue แล้วแสดงหน้า confirm ปิดได้
   const pushId = params.get('push');
   if(pushId) {
     window.history.replaceState({}, '', BASE_URL);
-    try {
-      await fetch(SHEET_URL, {
-        method:'POST',
-        body: JSON.stringify({ action:'pushScan', itemId: pushId })
-      });
-    } catch(e) {}
-    // แสดง UI แจ้งว่าสแกนสำเร็จแล้วปิดได้
+
+    // เช็ค cookie ก่อน ถ้ามี token ที่ยังใช้ได้ข้ามขั้นตอน PIN
+    let token = getCookie('scan_token');
+    if(!token) {
+      token = await showPinScreen(pushId);
+    }
+
+    // แสดงหน้า "กำลังส่ง..."
     document.body.innerHTML = `
       <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-        background:#0E1320;color:#EDE9E0;font-family:'DM Sans',sans-serif;gap:1.2rem;padding:2rem;text-align:center">
-        <div style="font-size:3rem">✅</div>
-        <div style="font-size:1.3rem;font-weight:600;color:#C9A84C">สแกนสำเร็จ!</div>
-        <div style="color:#7A8FAD;font-size:0.9rem">ข้อมูลถูกส่งไปยังคอมพิวเตอร์แล้ว<br>สามารถปิดหน้านี้ได้เลย</div>
-        <button onclick="window.close()" style="margin-top:0.5rem;padding:0.7rem 2rem;background:#C9A84C;
-          color:#0E1320;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer">ปิดหน้านี้</button>
+        background:#0E1320;color:#EDE9E0;font-family:'DM Sans',sans-serif;gap:1rem;padding:2rem;text-align:center">
+        <div style="font-size:2rem;animation:spin2 1s linear infinite;display:inline-block">⟳</div>
+        <div style="color:#7A8FAD;font-size:0.9rem">กำลังส่งข้อมูล...</div>
+        <style>@keyframes spin2{to{transform:rotate(360deg)}}</style>
       </div>`;
+
+    try {
+      const res = await fetch(SHEET_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'pushScan', itemId: pushId, token })
+      });
+      const r = await res.json();
+      if(r.status !== 'ok') throw new Error(r.message);
+      // สำเร็จ
+      document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          background:#0E1320;color:#EDE9E0;font-family:'DM Sans',sans-serif;gap:1.2rem;padding:2rem;text-align:center">
+          <div style="font-size:3rem">✅</div>
+          <div style="font-size:1.3rem;font-weight:600;color:#C9A84C">สแกนสำเร็จ!</div>
+          <div style="color:#7A8FAD;font-size:0.9rem">ข้อมูลถูกส่งไปยังคอมพิวเตอร์แล้ว<br>สามารถปิดหน้านี้ได้เลย</div>
+          <button onclick="window.close()" style="margin-top:0.5rem;padding:0.7rem 2rem;background:#C9A84C;
+            color:#0E1320;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer">ปิดหน้านี้</button>
+        </div>`;
+    } catch(e) {
+      // token หมดอายุหรือผิด → ล้าง cookie แล้วให้ใส่ PIN ใหม่
+      document.cookie = 'scan_token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+      document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          background:#0E1320;color:#EDE9E0;font-family:'DM Sans',sans-serif;gap:1.2rem;padding:2rem;text-align:center">
+          <div style="font-size:3rem">❌</div>
+          <div style="font-size:1.1rem;font-weight:600;color:#E05C5C">ส่งข้อมูลไม่สำเร็จ</div>
+          <div style="color:#7A8FAD;font-size:0.85rem">${e.message}</div>
+          <button onclick="location.reload()" style="margin-top:0.5rem;padding:0.7rem 2rem;background:#172033;
+            color:#EDE9E0;border:1px solid #243250;border-radius:10px;font-size:0.95rem;cursor:pointer">ลองใหม่</button>
+        </div>`;
+    }
     return true;
   }
 
