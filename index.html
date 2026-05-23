@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hotel Inventory</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
 :root {
@@ -208,8 +208,8 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 .unit-badge{position:absolute;top:8px;right:8px;background:var(--gold-dim);
   color:var(--gold);font-size:0.6rem;font-weight:700;padding:2px 7px;
   border-radius:20px;border:1px solid var(--border)}
-.bc-svg-wrap{background:#fff;padding:5px 8px;border-radius:7px;width:100%}
-.bc-svg-wrap svg{width:100%;height:auto;display:block}
+.bc-svg-wrap{background:#fff;padding:8px;border-radius:7px;width:100%;display:flex;justify-content:center;align-items:center}
+.bc-svg-wrap canvas,.bc-svg-wrap img{display:block}
 .bc-name{font-size:0.8rem;font-weight:600;text-align:center;color:var(--text)}
 .bc-sub{font-size:0.64rem;color:var(--muted);text-align:center}
 .print-sheet{display:none}
@@ -466,7 +466,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 <script>
 // ════════ CONFIG ════════
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx2-CKoH961Cd4nUiEKqRm6aMV_JRadMs0FZfekbyrCLI8mG7PreQQQz-4gg6WdE2Xc/exec';
-const BASE_URL  = window.location.href.split('?')[0];
+const BASE_URL  = 'https://stock-eight-psi.vercel.app/';
 
 // ════════ STATE ════════
 let DB = { items:[], borrows:[], log:[] };
@@ -919,15 +919,19 @@ function getUnitsForItem(item) {
   return units;
 }
 
-function makeBarcodeEl(code, width=160, height=50) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+function makeBarcodeEl(code) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'width:130px;height:130px';
+  const url = BASE_URL + '?scan=' + encodeURIComponent(code);
   try {
-    JsBarcode(svg, code, {
-      format:'CODE128', width:1.4, height, displayValue:false,
-      margin:4, background:'#ffffff', lineColor:'#000000'
+    new QRCode(wrap, {
+      text: url,
+      width: 130, height: 130,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
     });
-  } catch(e) { svg.innerHTML = `<text x="5" y="20" font-size="10">${code}</text>`; }
-  return svg;
+  } catch(e) { wrap.textContent = code; }
+  return wrap;
 }
 
 function renderQR() {
@@ -986,9 +990,11 @@ function printSelectedQR() {
   if(!toPrint.length){ toast('ไม่มีรายการที่เลือก','error'); return; }
   toPrint.forEach(u=>{
     const card=document.createElement('div'); card.className='pcard';
-    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    JsBarcode(svg, u.unitCode, { format:'CODE128', width:1.6, height:55, displayValue:false, margin:4, background:'#fff', lineColor:'#000' });
-    card.appendChild(svg);
+    const qrDiv = document.createElement('div');
+    qrDiv.style.cssText = 'width:110px;height:110px;margin:0 auto';
+    const qrUrl = BASE_URL + '?scan=' + encodeURIComponent(u.item.id);
+    new QRCode(qrDiv, { text:qrUrl, width:110, height:110, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+    card.appendChild(qrDiv);
     const nm=document.createElement('div'); nm.className='pcard-name'; nm.textContent=u.item.name+' #'+u.unitNum; card.appendChild(nm);
     if(u.item.note){ const nt=document.createElement('div'); nt.className='pcard-note'; nt.textContent=u.item.note; card.appendChild(nt); }
     const cd=document.createElement('div'); cd.className='pcard-unit'; cd.textContent=u.unitCode; card.appendChild(cd);
@@ -1012,11 +1018,7 @@ async function openScannerModal() {
 async function startScanner() {
   try {
     if(!window.ZXing){ toast('ไม่พบ ZXing library','error'); return; }
-    // BrowserMultiFormatReader พร้อม hints บังคับ CODE128 เท่านั้น
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128]);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    _scanReader = new ZXing.BrowserMultiFormatReader(hints);
+    _scanReader = new ZXing.BrowserQRCodeReader();
 
     // ขอสิทธิ์กล้องก่อน พร้อมบังคับกล้องหลังตั้งแต่แรก
     try {
@@ -1061,19 +1063,20 @@ function stopScanner() {
   closeModal('modal-scanner');
 }
 
-function handleBarcodeScan(code) {
+function handleBarcodeScan(rawCode) {
   if(!_scanActive) return;
-  _scanActive = false; // stop further scans
+  _scanActive = false;
   // เล่นเสียง feedback
   try{ const ctx=new AudioContext(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=880; g.gain.setValueAtTime(0.3,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15); o.start(); o.stop(ctx.currentTime+0.15); }catch(e){}
-  // หา item จาก unitCode (format: itemId-01)
-  const parts = code.split('-');
-  // unitCode = itemId + '-' + 2digits, แต่ itemId เองก็มี - ได้
-  // หาว่า itemId ไหน match
-  const item = DB.items.find(i=>{
-    const expectedPrefix = i.id+'-';
-    return code.startsWith(expectedPrefix) && /^\d{2}$/.test(code.slice(expectedPrefix.length));
-  });
+  // QR encode เป็น URL → ดึง ?scan= ออกมา, หรือถ้าเป็น itemId ตรงๆ ก็ใช้ได้เลย
+  let code = rawCode;
+  try {
+    const u = new URL(rawCode);
+    const scanParam = u.searchParams.get('scan');
+    if(scanParam) code = decodeURIComponent(scanParam);
+  } catch(e) {}
+  // หา item จาก itemId
+  const item = DB.items.find(i => i.id === code);
   const box = document.getElementById('scan-result-box');
   const txt = document.getElementById('scan-result-text');
   if(item){
