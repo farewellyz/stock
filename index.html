@@ -1014,35 +1014,28 @@ async function startScanner() {
     if(!window.ZXing){ toast('ไม่พบ ZXing library','error'); return; }
     _scanReader = new ZXing.BrowserMultiFormatReader();
 
-    // ขอสิทธิ์กล้องก่อน (จำเป็นสำหรับ iOS Safari เพื่อให้ได้ label ของกล้อง)
-    let stream;
+    // ขอสิทธิ์กล้องก่อน พร้อมบังคับกล้องหลังตั้งแต่แรก
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      stream.getTracks().forEach(t => t.stop()); // หยุดทันที แค่ขอ permission
+      const testStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: 'environment' } }
+      }).catch(() =>
+        // fallback กรณีมือถือบางรุ่นไม่รองรับ exact -> ลอง ideal แทน
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      );
+      testStream.getTracks().forEach(t => t.stop());
     } catch(permErr) {
       document.getElementById('scan-hint').textContent = 'กรุณาอนุญาตเข้าถึงกล้อง';
       console.error(permErr);
       return;
     }
 
-    // ดึง device list ด้วย native API (รองรับ ZXing 0.19+ และ iOS Safari)
-    const allDevices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = allDevices.filter(d => d.kind === 'videoinput');
-
-    if(!videoDevices.length){ document.getElementById('scan-hint').textContent='ไม่พบกล้อง'; return; }
-
-    // เลือกกล้องหลัง (environment) ถ้ามี
-    const cam = videoDevices.find(d =>
-      d.label.toLowerCase().includes('back') ||
-      d.label.toLowerCase().includes('rear') ||
-      d.label.toLowerCase().includes('environment')
-    ) || videoDevices[videoDevices.length - 1];
-
     document.getElementById('scan-hint').textContent='ส่องบาร์โค้ดให้ตรงกล้อง...';
     document.getElementById('scan-line').style.display='block';
     _scanActive = true;
 
-    await _scanReader.decodeFromVideoDevice(cam.deviceId || undefined, 'scan-video', (result, err) => {
+    // ใช้ constraints แทน deviceId -- วิธีนี้บังคับกล้องหลังได้ทั้ง iOS และ Android
+    const constraints = { video: { facingMode: { ideal: 'environment' } } };
+    await _scanReader.decodeFromConstraints(constraints, 'scan-video', (result, err) => {
       if(!_scanActive) return;
       if(result) handleBarcodeScan(result.getText());
     });
