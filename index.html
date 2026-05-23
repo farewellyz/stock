@@ -153,6 +153,23 @@ td{padding:0.75rem 1rem;font-size:0.855rem;vertical-align:middle}
   border-radius:20px;font-size:0.68rem;font-weight:500;max-width:220px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* OVERDUE BANNER */
+#overdue-banner{display:none;margin:0 0 1.1rem;background:rgba(224,92,92,0.10);
+  border:1px solid rgba(224,92,92,0.30);border-left:3px solid var(--red);
+  border-radius:var(--r);padding:0.75rem 1rem;
+  align-items:center;gap:0.75rem;flex-wrap:wrap}
+#overdue-banner.show{display:flex}
+.ob-icon{font-size:1.1rem;flex-shrink:0}
+.ob-text{flex:1;font-size:0.84rem;color:var(--text);line-height:1.5}
+.ob-text strong{color:var(--red)}
+.ob-btn{background:rgba(224,92,92,0.18);color:var(--red);border:1px solid rgba(224,92,92,0.3);
+  padding:0.3rem 0.8rem;border-radius:20px;font-size:0.75rem;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:background 0.15s}
+.ob-btn:hover{background:rgba(224,92,92,0.28)}
+.ob-close{background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:0.85rem;padding:0.2rem 0.4rem;border-radius:4px;transition:color 0.15s;margin-left:auto}
+.ob-close:hover{color:var(--text)}
+.tbadge-red{background:var(--red)!important;color:#fff!important;animation:pulse 1.5s infinite}
 /* LOG CHIPS */
 .lchip{padding:0.2rem 0.58rem;border-radius:20px;font-size:0.67rem;font-weight:600}
 .lc-b{background:var(--red-d);color:var(--red)}
@@ -267,7 +284,7 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 
 <nav class="tabs">
   <div class="tab active" onclick="switchTab('inventory')" id="tab-inventory">📦 คลังสินค้า <span class="tbadge" id="badge-inventory">0</span></div>
-  <div class="tab" onclick="switchTab('borrow')" id="tab-borrow">🔑 การยืม–คืน <span class="tbadge" id="badge-borrow">0</span></div>
+  <div class="tab" onclick="switchTab('borrow')" id="tab-borrow">🔑 การยืม–คืน <span class="tbadge" id="badge-borrow">0</span> <span class="tbadge tbadge-red" id="badge-overdue" style="display:none"></span></div>
   <div class="tab" onclick="switchTab('log')" id="tab-log">📋 ประวัติ</div>
   <div class="tab" onclick="switchTab('qr')" id="tab-qr">🏷 Barcode</div>
 </nav>
@@ -297,10 +314,16 @@ textarea{resize:vertical;min-height:68px;font-size:0.855rem}
 
 <!-- BORROW -->
 <div class="page" id="page-borrow">
+  <div id="overdue-banner">
+    <span class="ob-icon">⚠️</span>
+    <span class="ob-text">มี <strong id="ob-count">0</strong> รายการที่ <strong>เกินกำหนดคืน</strong> แล้ว</span>
+    <button class="ob-btn" onclick="filterOverdue()">ดูรายการเกินกำหนด</button>
+    <button class="ob-close" onclick="dismissBanner()" title="ปิด">✕</button>
+  </div>
   <div class="toolbar">
     <div class="swrap"><span class="sicon">🔍</span><input class="sbox" type="text" placeholder="ค้นหา ห้อง / ชื่อ / สินค้า..." id="borrow-search" oninput="renderBorrow()"></div>
     <select class="btn btn-outline" id="borrow-filter" onchange="renderBorrow()">
-      <option value="">ทุกสถานะ</option><option value="out">ยืมอยู่</option><option value="returned">คืนแล้ว</option>
+      <option value="">ทุกสถานะ</option><option value="out">ยืมอยู่</option><option value="overdue">⚠ เกินกำหนด</option><option value="returned">คืนแล้ว</option>
     </select>
     <button class="btn btn-primary" onclick="openModal('modal-borrow')">＋ บันทึกการยืม</button>
   </div>
@@ -515,7 +538,7 @@ function getBorrowedQty(itemId) {
   return DB.borrows.filter(b=>b.itemId===itemId&&String(b.status).trim()==='out').reduce((s,b)=>s+Number(b.qty||0),0);
 }
 function getBorrowedRooms(itemId) {
-  return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&String(b.status).trim()==='out').map(b=>b.room))];
+  return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').map(b=>b.room))];
 }
 
 // ════════ TABS ════════
@@ -526,7 +549,7 @@ function switchTab(name) {
   document.getElementById('tab-'+name).classList.add('active');
   document.getElementById('page-'+name).classList.add('active');
   if(name==='inventory') renderInventory();
-  if(name==='borrow') renderBorrow();
+  if(name==='borrow'){ delete document.getElementById('overdue-banner').dataset.dismissed; updateHeader(); renderBorrow(); }
   if(name==='log') renderLog();
   if(name==='qr') renderQR();
 }
@@ -619,8 +642,7 @@ async function deleteItem(id) {
       const r = await apiPost({ action:'deleteItem', id });
       if(r.status!=='ok') throw new Error(r.message);
       DB.items = DB.items.filter(i=>i.id!==id);
-      DB.borrows = DB.borrows.filter(b=>b.itemId!==id);
-      renderInventory(); renderBorrow(); renderQR(); updateHeader();
+      renderInventory(); renderQR(); updateHeader();
       toast(`ลบ "${item.name}" แล้ว`,'info');
       setSyncStatus('ok','บันทึกแล้ว — '+new Date().toLocaleTimeString('th-TH'));
     } catch(e) { toast('ลบล้มเหลว: '+e.message,'error'); }
@@ -783,8 +805,13 @@ async function deleteBorrow(id) {
 function renderBorrow() {
   const q=document.getElementById('borrow-search').value.toLowerCase();
   const f=document.getElementById('borrow-filter').value;
+  const today2=new Date().toISOString().split('T')[0];
   let rows=DB.borrows.filter(b=>{
-    if(f&&String(b.status).trim()!==f) return false;
+    const st=String(b.status).trim();
+    const isOverdue=st==='out'&&b.dueDate&&fmtDate(b.dueDate)<today2;
+    if(f==='overdue'&&!isOverdue) return false;
+    if(f==='out'&&st!=='out') return false;
+    if(f==='returned'&&st!=='returned') return false;
     return !q||(b.room+b.guestName+b.itemName+(b.note||'')).toLowerCase().includes(q);
   }).sort((a,b)=>(b.borrowDate+b.borrowTime).localeCompare(a.borrowDate+a.borrowTime));
   const tbody=document.getElementById('borrow-tbody');
@@ -808,7 +835,7 @@ function renderBorrow() {
       <td style="font-size:0.8rem">${b.returnDate?`${fmtDate(b.returnDate)}<br><small style="color:var(--muted)">${fmtTime(b.returnTime)}</small>`:'<span style="color:var(--muted)">—</span>'}</td>
       <td>${st}</td>
       <td class="tdact">
-        ${String(b.status).trim()==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
+        ${b.status==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
         <button class="btn btn-danger btn-sm" onclick="deleteBorrow('${b.id}')">ลบ</button>
       </td></tr>`;
   }).join('');
@@ -875,7 +902,28 @@ function updateHeader() {
   const out=DB.borrows.filter(b=>String(b.status).trim()==='out');
   document.getElementById('hdr-out').textContent=out.length;
   const today=new Date().toISOString().split('T')[0];
-  document.getElementById('hdr-overdue').textContent=out.filter(b=>b.dueDate&&fmtDate(b.dueDate)<today).length;
+  const overdueList=out.filter(b=>b.dueDate&&fmtDate(b.dueDate)<today);
+  const oc=overdueList.length;
+  document.getElementById('hdr-overdue').textContent=oc;
+  // overdue badge บน tab
+  const obadge=document.getElementById('badge-overdue');
+  if(oc>0){ obadge.textContent='⚠ '+oc; obadge.style.display='inline'; }
+  else { obadge.style.display='none'; }
+  // banner (แสดงเฉพาะตอนอยู่หน้า borrow หรือโหลดครั้งแรก)
+  const banner=document.getElementById('overdue-banner');
+  document.getElementById('ob-count').textContent=oc;
+  if(oc>0 && !banner.dataset.dismissed){ banner.classList.add('show'); }
+  else if(oc===0){ banner.classList.remove('show'); delete banner.dataset.dismissed; }
+}
+function filterOverdue(){
+  document.getElementById('borrow-filter').value='overdue';
+  renderBorrow();
+  document.getElementById('overdue-banner').classList.remove('show');
+}
+function dismissBanner(){
+  const banner=document.getElementById('overdue-banner');
+  banner.classList.remove('show');
+  banner.dataset.dismissed='1';
 }
 
 // ════════ BARCODE ════════
