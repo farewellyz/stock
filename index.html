@@ -708,7 +708,14 @@ function populateBorrowModal() {
 
 function openBorrowFor(itemId) {
   openModal('modal-borrow');
-  setTimeout(()=>{ document.getElementById('fb-item').value=itemId; },80);
+  const trySet = (attempts) => {
+    const sel = document.getElementById('fb-item');
+    if(!sel) return;
+    sel.value = String(itemId);
+    if(String(sel.value) !== String(itemId) && attempts > 0)
+      setTimeout(()=>trySet(attempts-1), 100);
+  };
+  setTimeout(()=>trySet(5), 100);
 }
 
 async function addBorrow() {
@@ -719,8 +726,9 @@ async function addBorrow() {
   const date=document.getElementById('fb-date').value;
   const time=document.getElementById('fb-time').value;
   if(!guestName||!room||!itemId||qty<1||!date||!time){ toast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
-  const item=DB.items.find(i=>i.id===itemId);
-  const avail=item.totalQty-getBorrowedQty(itemId);
+  const item=DB.items.find(i=>String(i.id)===String(itemId));
+  if(!item){ toast('ไม่พบสินค้าที่เลือก กรุณาเลือกใหม่','error'); return; }
+  const avail=Number(item.totalQty)-getBorrowedQty(itemId);
   if(qty>avail){ toast(`มีของเหลือแค่ ${avail} ชิ้น`,'error'); return; }
   const borrow={ id:uid(), itemId, itemName:item.name, guestName, room, qty,
     borrowDate:date, borrowTime:time,
