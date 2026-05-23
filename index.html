@@ -460,7 +460,7 @@
 
 <script>
 // ════════ CONFIG — hardcoded ════════
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzzdS46W0gewTZwxoOoFGW3vp9FUQztxcp4Woyf31VzTe4aFfH-i-piEw8EMCzU_Sw/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwkpUv4AzFCvdrxr7FLGwrB4baU9Cm4Hu1ju6g3Az-CKOVnmClOc0X7OLjI4bQSQqjl/exec';
 const SHEET_ID  = '1tTKUO4DjrNy3HgGtsZhlR5jRrQXn6q1YA5znCtayTVE';
 
 // ════════ DATA ════════
@@ -752,31 +752,39 @@ function updateHeader(){
 async function pushRow(sheetName, row) {
   try {
     await fetch(SHEET_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:'append', sheet:sheetName, row, sheetId:SHEET_ID})
     });
-  } catch(e){}
+  } catch(e){ console.error('pushRow error:', e); }
 }
 
 async function pushAllToSheet(){
   toast('กำลัง Sync ข้อมูลขึ้น Google Sheet... ⏳','info');
+  document.getElementById('sync-dot').className='sync-dot';
+  document.getElementById('sync-text').textContent='กำลัง Sync...';
   const invH=['วันที่เพิ่ม','ชื่อสินค้า','ประเภท','จำนวน','หมายเหตุ'];
   const invR=DB.items.map(i=>[i.createdAt,i.name,i.category,i.totalQty,i.note]);
   const bH=['วันที่ยืม','เวลายืม','ห้อง','ชื่อผู้ยืม','สินค้า','จำนวน','กำหนดคืน','วันคืน','เวลาคืน','สถานะ','หมายเหตุ'];
   const bR=DB.borrows.map(b=>[b.borrowDate,b.borrowTime,b.room,b.guestName,b.itemName,b.qty,b.dueDate,b.returnDate,b.returnTime,b.status==='out'?'ยืมอยู่':'คืนแล้ว',b.note]);
   try {
     for(const [sheet,headers,rows] of [['คลังสินค้า',invH,invR],['การยืม-คืน',bH,bR]]){
-      await fetch(SHEET_URL,{
-        method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'application/json'},
+      const res = await fetch(SHEET_URL,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({action:'clear_append',sheet,headers,rows,sheetId:SHEET_ID})
       });
+      const json = await res.json();
+      if(json.status !== 'ok') throw new Error(json.message||'Unknown error');
     }
     toast('Sync Google Sheet สำเร็จ ✓','success');
     document.getElementById('sync-dot').className='sync-dot ok';
     document.getElementById('sync-text').textContent='Synced — '+new Date().toLocaleTimeString('th-TH');
-  } catch(e){ toast('Sync ล้มเหลว: '+e.message,'error'); }
+  } catch(e){
+    toast('Sync ล้มเหลว: '+e.message,'error');
+    document.getElementById('sync-dot').className='sync-dot err';
+    document.getElementById('sync-text').textContent='Sync ล้มเหลว';
+  }
 }
 
 // ════════ INIT ════════
