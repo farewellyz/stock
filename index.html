@@ -515,7 +515,7 @@ function getBorrowedQty(itemId) {
   return DB.borrows.filter(b=>b.itemId===itemId&&String(b.status).trim()==='out').reduce((s,b)=>s+Number(b.qty||0),0);
 }
 function getBorrowedRooms(itemId) {
-  return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&b.status==='out').map(b=>b.room))];
+  return [...new Set(DB.borrows.filter(b=>b.itemId===itemId&&String(b.status).trim()==='out').map(b=>b.room))];
 }
 
 // ════════ TABS ════════
@@ -619,7 +619,8 @@ async function deleteItem(id) {
       const r = await apiPost({ action:'deleteItem', id });
       if(r.status!=='ok') throw new Error(r.message);
       DB.items = DB.items.filter(i=>i.id!==id);
-      renderInventory(); renderQR(); updateHeader();
+      DB.borrows = DB.borrows.filter(b=>b.itemId!==id);
+      renderInventory(); renderBorrow(); renderQR(); updateHeader();
       toast(`ลบ "${item.name}" แล้ว`,'info');
       setSyncStatus('ok','บันทึกแล้ว — '+new Date().toLocaleTimeString('th-TH'));
     } catch(e) { toast('ลบล้มเหลว: '+e.message,'error'); }
@@ -807,7 +808,7 @@ function renderBorrow() {
       <td style="font-size:0.8rem">${b.returnDate?`${fmtDate(b.returnDate)}<br><small style="color:var(--muted)">${fmtTime(b.returnTime)}</small>`:'<span style="color:var(--muted)">—</span>'}</td>
       <td>${st}</td>
       <td class="tdact">
-        ${b.status==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
+        ${String(b.status).trim()==='out'?`<button class="btn btn-success btn-sm" onclick="openReturn('${b.id}')">คืน</button>`:''}
         <button class="btn btn-danger btn-sm" onclick="deleteBorrow('${b.id}')">ลบ</button>
       </td></tr>`;
   }).join('');
